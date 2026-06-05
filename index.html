@@ -215,6 +215,14 @@ html,body{font-family:var(--hcr);}
 .gradesel{display:flex;gap:14px;margin:12px 0;}
 .gradebtn{flex:1;padding:38px 0;font-size:26px;font-weight:800;border:2px solid var(--navy3);border-radius:22px;background:#fff;color:var(--navy);cursor:pointer;font-family:var(--hcr);box-shadow:0 5px 16px rgba(19,35,63,.08);transition:transform .08s;}
 .gradebtn:active{transform:scale(.97);background:var(--navy);color:#fff;}
+.tday{font-weight:800;color:var(--navy);margin:18px 0 8px;font-size:16px;}
+.trow{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 14px rgba(19,35,63,.05);}
+.thead{display:flex;align-items:center;gap:8px;}
+.thead b{font-size:17px;}
+.tg{font-size:12px;background:var(--navy);color:#fff;border-radius:8px;padding:2px 9px;}
+.copybtn{margin-left:auto;font-size:13px;background:#fee500;color:#3a2c00;border:none;border-radius:10px;padding:9px 13px;font-weight:800;cursor:pointer;font-family:var(--hcr);}
+.tsub{font-size:13px;color:var(--muted);margin:6px 0;}
+.tsum{font-size:14px;color:#33405a;line-height:1.7;background:#fbfcfe;border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
 </style>
 </head>
 <body>
@@ -240,6 +248,8 @@ function examPassages(ex){return ex.passages.filter(allowed);}
 let AVAIL={};
 function rebuildAvail(){const g=(typeof S!=='undefined'&&S&&S.grade)?S.grade:null;AVAIL={};const ms=new Set([3,6,9,11]);EXAMS.forEach(e=>{if(g&&e.grade&&e.grade!==g)return;const y=String(e.year||(e.id.match(/^(\d{4})/)||[])[1]||'');const m=Number(e.month||((e.id.match(/^\d{4}-(\d{1,2})/)||[])[1]));if(!y||!m)return;(AVAIL[y]=AVAIL[y]||{})[m]=e.id;ms.add(m);});MONTHS=[...ms].sort((a,b)=>a-b);}
 
+const RESULT_API="https://script.google.com/macros/s/AKfycbwa7ux4l63hTDqNUYPlUZ4xanz-VaxSNpJAEuvSHNewQz3sHge-YHnk7qM1ESar7CvM/exec";
+let teacherTexts=[];
 let S=null, sel=new Set(), pick={year:null}, screen='login', timerId=null;
 rebuildAvail();
 
@@ -258,6 +268,7 @@ function render(){
   who.textContent=(S&&S.student)?`${S.student}${S.grade?' · '+S.grade:''}${S.cls?' · '+S.cls:''}`:'';
   if(screen==='login')renderLogin();
   else if(screen==='grade')renderGrade();
+  else if(screen==='teacher')renderTeacher();
   else if(screen==='exam')renderExam();
   else if(screen==='numbers')renderNumbers();
   else if(screen==='stageselect')renderStageSelect();
@@ -273,11 +284,12 @@ function renderLogin(){
     <div class="field"><label>이름</label><input class="tin" id="inName" placeholder="이름을 입력하세요"></div>
     <div class="field"><label>반 (선택)</label><input class="tin" id="inCls" placeholder="예: 월수금반"></div>
     <button class="bigbtn" onclick="doLogin()">시작하기</button>
-    <div class="note">지금은 이름·반 입력으로 시작해요. 실제 계정·선생님 화면은 다음 단계(Firebase)에서 추가됩니다.</div></div>`;
+    <button class="bigbtn ghost" style="margin-top:10px" onclick="setScreen('teacher')">👩‍🏫 선생님 화면</button>
+    <div class="note">학생은 이름·반 입력 후 시작. 선생님 화면에서 날짜별 결과를 확인·카톡 복사할 수 있어요.</div></div>`;
   setTimeout(()=>{const n=document.getElementById('inName');n&&n.focus();},80);
 }
 function doLogin(){const name=(document.getElementById('inName').value||'').trim();const cls=(document.getElementById('inCls').value||'').trim();
-  if(!name){toast('이름을 입력해 주세요');return;}S={student:name,cls};pick={year:null};sel=new Set();setScreen('grade');}
+  if(!name){toast('이름을 입력해 주세요');return;}S={student:name,cls,retries:0};pick={year:null};sel=new Set();setScreen('grade');}
 
 function renderGrade(){
   backBtn.style.display='flex';hsub.textContent='학년 선택';
@@ -575,13 +587,14 @@ function stageEndHTML(){
   return h+`</div>`;
 }
 function goStageSelect(){const undone=[1,2,3,4].filter(s=>!S.stats[s]);S.sel=new Set(undone.length?undone:[1,2,3,4]);S.stoppedStage=null;setScreen('stageselect');}
-function retryGate(){ [1,2].forEach(s=>{S.ans[s]={};delete S.stats[s];}); S.stoppedStage=null;
+function retryGate(){ S.retries=(S.retries||0)+1; [1,2].forEach(s=>{S.ans[s]={};delete S.stats[s];}); S.stoppedStage=null;
   S.planPos=S.plan.findIndex(s=>s===1||s===2)-1; advancePlan(); }
 function proceedRemedial(){ const i=S.plan.findIndex(s=>s===3||s===4);
   if(i<0){S.stoppedStage=S.stage;setScreen('result');return;} S.planPos=i-1; advancePlan(); }
 
 function renderResult(){
   backBtn.style.display='none';hsub.textContent='결과';
+  sendResult();
   let rows='';
   for(let s=1;s<=4;s++){const st=S.stats[s];if(!st)continue;const gate=(s===1||s===2);let badge,cls;
     if(gate){if(st.score>=PASS_MARK){badge='통과';cls='p';}else{badge='미달';cls='f';}}else{badge='완료';cls='p';}
@@ -594,10 +607,58 @@ function renderResult(){
     <div class="copyrow"><button class="homebtn" style="flex:1" onclick="restart()">처음으로</button></div>
     <div class="note" style="margin-top:14px">결과는 선생님 페이지에서 날짜별로 확인·카톡 복사할 수 있어요(다음 단계에서 연결).</div></div>`;
 }
+function buildResultText(){
+  const n=new Date();
+  const ap=n.getHours()<12?'오전':'오후'; const h12=((n.getHours()+11)%12)+1;
+  const dt=`${n.getFullYear()}년 ${n.getMonth()+1}월 ${n.getDate()}일 ${ap} ${h12}:${String(n.getMinutes()).padStart(2,'0')}`;
+  // 총점 = 전체 맞힌 문제 / 전체 문제 (모든 단계 합산)
+  let tc=0,tt=0; for(let s=1;s<=4;s++){const st=S.stats[s];if(st){tc+=st.c;tt+=st.t;}}
+  const total=tt?Math.round(tc/tt*100):0;
+  const L=['[헤일리 고등학교 모의고사 결과]','이름: '+(S.student||'')+(S.cls?' ('+S.cls+')':''),'날짜: '+dt,'학년: '+(S.grade||''),'회차: '+(S.examTitle||''),'번호: '+S.orderTitles.map(t=>t.replace('번','')).join('·'),'총점: '+tc+'/'+tt+' ('+total+'점)'];
+  for(let s=1;s<=4;s++){const st=S.stats[s];if(!st)continue;L.push(STAGE_NAME[s]+': '+st.c+'/'+st.t+' · 오답 '+(st.t-st.c)+'개');}
+  if(S.retries)L.push('재시험: '+S.retries+'회');
+  // 틀린 문장(영어 전체) — 문장별로 모으고 어느 단계에서 틀렸는지 표시
+  const wmap={};
+  for(let s=1;s<=4;s++){ if(!S.stats[s])continue; const ans=S.ans[s]||{};
+    Object.keys(ans).forEach(i=>{ const a=ans[i]; if(a&&a.result===false){ const it=S.items[i]; if(!it)return;
+      const key=it.ptitle.replace('번','')+'-'+((it.si||0)+1);
+      if(!wmap[key])wmap[key]={eng:it.correct,st:new Set(),idx:Number(i)}; wmap[key].st.add(s); } }); }
+  const wkeys=Object.keys(wmap).sort((a,b)=>{const pa=a.split('-').map(Number),pb=b.split('-').map(Number);return ((pa[0]||0)-(pb[0]||0))||((pa[1]||0)-(pb[1]||0));});
+  if(wkeys.length){ L.push('틀린 문장:'); wkeys.forEach(k=>{const w=wmap[k];const tag=[...w.st].sort().map(x=>x+'단계').join('·');L.push(' · '+k+' ('+tag+') '+w.eng);}); }
+  else { L.push('틀린 문장: 없음 👍'); }
+  return L.join('\n');
+}
+function sendResult(){
+  if(!S||S.sent)return; S.sent=true;
+  const payload={student:S.student,cls:S.cls||'',grade:S.grade||'',examTitle:S.examTitle||'',numbers:S.orderTitles.map(t=>t.replace('번','')).join('·'),summary:buildResultText(),retries:S.retries||0};
+  try{fetch(RESULT_API,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)});}catch(e){}
+}
+function renderTeacher(){
+  backBtn.style.display='flex';hsub.textContent='선생님 · 결과';app.className='fade';
+  app.innerHTML=`<div class="intro">결과 불러오는 중…</div>`; teacherTexts=[];
+  fetch(RESULT_API,{cache:'no-store'}).then(r=>r.json()).then(rows=>{
+    if(!rows||!rows.length){app.innerHTML=`<div class="section-title">학습 결과</div><div class="intro">아직 저장된 결과가 없어요. 학생이 시험을 끝내면 여기에 날짜별로 쌓여요.</div>`;return;}
+    rows.sort((a,b)=>new Date(b.time)-new Date(a.time));
+    const byDate={};
+    rows.forEach(r=>{const d=new Date(r.time);if(isNaN(d))return;const k=`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;(byDate[k]=byDate[k]||[]).push(r);});
+    let h=`<div class="section-title">학습 결과 (최근순)</div>`;
+    Object.keys(byDate).forEach(day=>{
+      h+=`<div class="tday">📅 ${day} · ${byDate[day].length}명</div>`;
+      byDate[day].forEach(r=>{const i=teacherTexts.length;teacherTexts.push(r.summary||'');
+        h+=`<div class="trow"><div class="thead"><b>${escapeHtml(r.student||'')}</b> <span class="tg">${escapeHtml(r.grade||'')}</span><button class="copybtn" onclick="copyText(${i})">📋 카톡 복사</button></div>`+
+           `<div class="tsub">${escapeHtml(r.examTitle||'')}${r.numbers?' · 번호 '+escapeHtml(String(r.numbers)):''}</div>`+
+           `<div class="tsum">${escapeHtml(r.summary||'').replace(/\n/g,'<br>')}</div></div>`;});
+    });
+    app.innerHTML=h;
+  }).catch(e=>{app.innerHTML=`<div class="section-title">학습 결과</div><div class="intro">결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>`;});
+}
+function copyText(i){const t=teacherTexts[i]||'';
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>toast('복사됐어요')).catch(()=>fbCopy(t));}else fbCopy(t);}
+function fbCopy(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('복사됐어요');}catch(e){toast('복사 실패');}document.body.removeChild(ta);}
 function restart(){clearInterval(timerId);S=null;setScreen('login');}
 
 let toastT;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200);}
-backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('login');else if(screen==='stageselect')setScreen('numbers');};
+backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('login');else if(screen==='teacher')setScreen('login');else if(screen==='stageselect')setScreen('numbers');};
 (async()=>{try{const r=await fetch('exams.json',{cache:'no-store'});if(r.ok){const d=await r.json();if(Array.isArray(d)&&d.length){EXAMS=d;rebuildAvail();if(screen==='exam'||screen==='numbers')render();}}}catch(e){}})();
 render();
 </script>
