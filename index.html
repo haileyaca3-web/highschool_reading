@@ -281,6 +281,7 @@ function render(){
   else if(screen==='teacher')renderTeacher();
   else if(screen==='signup')renderSignup();
   else if(screen==='tgate')renderTeacherGate();
+  else if(screen==='myrec')renderMyRecords();
   else if(screen==='exam')renderExam();
   else if(screen==='numbers')renderNumbers();
   else if(screen==='stageselect')renderStageSelect();
@@ -341,12 +342,26 @@ function renderTeacherGate(){
 }
 function checkTeacherPw(){const v=(document.getElementById('tpw').value||'').trim();if(v===TEACHER_PW)setScreen('teacher');else toast('비밀번호가 달라요');}
 function approveStudent(id){toast('승인 중…');apiGet({action:'approve',id:id}).then(j=>{toast(j&&j.ok?'승인했어요':'승인 실패');renderTeacher();}).catch(()=>toast('연결 오류'));}
+function renderMyRecords(){
+  backBtn.style.display='flex';hsub.textContent='내 기록';app.className='fade';
+  if(!S||!S.id){app.innerHTML=`<div class="section-title">내 학습 기록</div><div class="intro">로그인 후에 볼 수 있어요.</div>`;return;}
+  app.innerHTML=`<div class="intro">내 기록 불러오는 중…</div>`;
+  apiGet({action:'myrecords',id:S.id}).then(rows=>{
+    rows=rows||[];
+    if(!rows.length){app.innerHTML=`<div class="section-title">내 학습 기록</div><div class="intro">아직 저장된 기록이 없어요. 시험을 끝까지 풀면 여기에 쌓여요.</div>`;return;}
+    rows.sort((a,b)=>new Date(b.time)-new Date(a.time));
+    let h=`<div class="section-title">${escapeHtml(S.student||'')} · 내 학습 기록 (최근순)</div>`;
+    rows.forEach(r=>{const d=new Date(r.time);const dd=isNaN(d)?'':`${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`;
+      h+=`<div class="trow"><div class="thead"><b>${escapeHtml(r.examTitle||'')}</b></div><div class="tsub">${dd}${r.numbers?' · 번호 '+escapeHtml(String(r.numbers)):''}</div><div class="tsum">${escapeHtml(r.summary||'').replace(/\n/g,'<br>')}</div></div>`;});
+    app.innerHTML=h;
+  }).catch(()=>{app.innerHTML=`<div class="section-title">내 학습 기록</div><div class="intro">기록을 불러오지 못했어요. 잠시 후 다시 시도하세요.</div>`;});
+}
 
 function renderGrade(){
   backBtn.style.display='flex';hsub.textContent='학년 선택';
   let h=`<div class="section-title">학년을 선택하세요</div><div class="gradesel">`;
   ['고1','고2'].forEach(g=>{h+=`<button class="gradebtn" onclick="pickGrade('${g}')">${g}</button>`;});
-  h+=`</div><div class="intro">학년을 고르면 그 학년 모의고사만 보여요.</div>`;
+  h+=`</div><button class="bigbtn ghost" style="margin-top:8px" onclick="setScreen('myrec')">내 기록 보기</button><div class="intro">학년을 고르면 그 학년 모의고사만 보여요.</div>`;
   app.className='fade';app.innerHTML=h;
 }
 function pickGrade(g){S.grade=g;rebuildAvail();pick={year:null};setScreen('exam');}
@@ -450,7 +465,8 @@ function stageItems(st){
 function startStage(st){
   S.stage=st; S.ans[st]={};
   const items=stageItems(st);
-  S.screens=[]; for(let i=0;i<items.length;i+=PAGE_SIZE)S.screens.push(items.slice(i,i+PAGE_SIZE));
+  const ps=(st===2||st===3)?1:PAGE_SIZE;
+  S.screens=[]; for(let i=0;i<items.length;i+=ps)S.screens.push(items.slice(i,i+ps));
   S.spos=0; S.phase='answering';
   if(st===2||st===3){ const cap=(st===2)?4:5; items.forEach(idx=>{ const it=S.items[idx];
       const n=Math.min(it.mv.length,cap);
@@ -655,7 +671,7 @@ function renderResult(){
   app.innerHTML=`<div class="resultcard"><h2>학습 결과</h2>
     <div class="rmeta">${escapeHtml(S.student)}${S.cls?' · '+escapeHtml(S.cls):''} · ${S.examTitle} · 번호 ${S.orderTitles.map(t=>t.replace('번','')).join('·')}</div>
     ${rows}<div class="rfinal" style="color:${fin?'var(--ok)':'var(--no)'}">${fin?'🎉 모든 단계 완료!':`${S.stoppedStage}단계 ${S.stats[S.stoppedStage].score}점 — 재시험 권장`}</div>
-    <div class="copyrow"><button class="homebtn" style="flex:1" onclick="restart()">처음으로</button></div>
+    <div class="copyrow"><button class="homebtn" style="flex:1" onclick="setScreen('myrec')">내 기록 보기</button><button class="homebtn" style="flex:1" onclick="restart()">처음으로</button></div>
     <div class="note" style="margin-top:14px">결과는 선생님 페이지에서 날짜별로 확인·카톡 복사할 수 있어요(다음 단계에서 연결).</div></div>`;
 }
 function buildResultText(){
@@ -681,7 +697,7 @@ function buildResultText(){
 }
 function sendResult(){
   if(!S||S.sent)return; S.sent=true;
-  const payload={student:S.student,cls:S.cls||'',grade:S.grade||'',examTitle:S.examTitle||'',numbers:S.orderTitles.map(t=>t.replace('번','')).join('·'),summary:buildResultText(),retries:S.retries||0};
+  const payload={student:S.student,id:S.id||'',cls:S.cls||'',grade:S.grade||'',examTitle:S.examTitle||'',numbers:S.orderTitles.map(t=>t.replace('번','')).join('·'),summary:buildResultText(),retries:S.retries||0};
   try{fetch(RESULT_API,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)});}catch(e){}
 }
 function renderTeacher(){
@@ -722,7 +738,7 @@ function fbCopy(t){const ta=document.createElement('textarea');ta.value=t;docume
 function restart(){clearInterval(timerId);S=null;setScreen('login');}
 
 let toastT;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200);}
-backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('login');else if(screen==='teacher')setScreen('login');else if(screen==='signup')setScreen('login');else if(screen==='tgate')setScreen('login');else if(screen==='stageselect')setScreen('numbers');};
+backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('login');else if(screen==='teacher')setScreen('login');else if(screen==='signup')setScreen('login');else if(screen==='tgate')setScreen('login');else if(screen==='myrec')setScreen(S&&S.id?'grade':'login');else if(screen==='stageselect')setScreen('numbers');};
 (async()=>{try{const r=await fetch('exams.json',{cache:'no-store'});if(r.ok){const d=await r.json();if(Array.isArray(d)&&d.length){EXAMS=d;rebuildAvail();if(screen==='exam'||screen==='numbers')render();}}}catch(e){}})();
 render();
 </script>
