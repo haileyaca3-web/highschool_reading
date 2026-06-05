@@ -427,6 +427,7 @@ function startSession(){
   });
   S.items=raw; S.orderTitles=order.map(p=>p.title);
   S.ans={1:{},2:{},3:{},4:{}}; S.stats={}; S.stoppedStage=null;
+  S.sid=(S.id||S.student||'u')+'-'+S.examId+'-'+Date.now();
   S.sel=new Set([1,2,3,4]);
   setScreen('stageselect');
 }
@@ -626,7 +627,7 @@ function endStage(){
   const st=S.stage,ids=stageItems(st);let c=0;
   ids.forEach(i=>{if(S.ans[st][i]&&S.ans[st][i].result)c++;});
   const t=ids.length,score=t?Math.round(c/t*100):100;
-  S.stats[st]={c,t,score};S.phase='stageend';render();
+  S.stats[st]={c,t,score}; sendResult(); S.phase='stageend';render();
 }
 function stageEndHTML(){
   const st=S.stage,stt=S.stats[st],gate=(st===1||st===2),more=planMore();
@@ -696,8 +697,8 @@ function buildResultText(){
   return L.join('\n');
 }
 function sendResult(){
-  if(!S||S.sent)return; S.sent=true;
-  const payload={student:S.student,id:S.id||'',cls:S.cls||'',grade:S.grade||'',examTitle:S.examTitle||'',numbers:S.orderTitles.map(t=>t.replace('번','')).join('·'),summary:buildResultText(),retries:S.retries||0};
+  if(!S||!S.orderTitles||!S.stats||!Object.keys(S.stats).length)return;
+  const payload={action:'upsert',sid:S.sid||'',student:S.student,id:S.id||'',cls:S.cls||'',grade:S.grade||'',examTitle:S.examTitle||'',numbers:S.orderTitles.map(t=>t.replace('번','')).join('·'),summary:buildResultText(),retries:S.retries||0};
   try{fetch(RESULT_API,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)});}catch(e){}
 }
 function renderTeacher(){
@@ -735,7 +736,7 @@ function toggleTeacherRange(){teacherAll=!teacherAll;renderTeacher();}
 function copyText(i){const t=teacherTexts[i]||'';
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>toast('복사됐어요')).catch(()=>fbCopy(t));}else fbCopy(t);}
 function fbCopy(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('복사됐어요');}catch(e){toast('복사 실패');}document.body.removeChild(ta);}
-function restart(){clearInterval(timerId);S=null;setScreen('login');}
+function restart(){clearInterval(timerId);try{sendResult();}catch(e){}S=null;setScreen('login');}
 
 let toastT;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200);}
 backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('login');else if(screen==='teacher')setScreen('login');else if(screen==='signup')setScreen('login');else if(screen==='tgate')setScreen('login');else if(screen==='myrec')setScreen(S&&S.id?'grade':'login');else if(screen==='stageselect')setScreen('numbers');};
