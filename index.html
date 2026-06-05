@@ -245,7 +245,7 @@ rebuildAvail();
 
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function buildUnits(sent){const u=[];sent.segs.forEach(seg=>{if(seg.type==='fixed'){if(seg.text.trim())u.push({chip:false,text:seg.text.trim()});}else seg.order.forEach(i=>u.push({chip:true,text:seg.chips[i]}));});return u;}
-function correctText(sent){return buildUnits(sent).map(x=>x.text).join(' ').replace(/\s+([,.;:?!])/g,'$1').replace(/\s+/g,' ').trim();}
+function correctText(sent){let s=buildUnits(sent).map(x=>x.text).join(' ').replace(/\s+([,.;:?!])/g,'$1').replace(/\s+/g,' ').trim();return s.replace(/[a-zA-Z]/,c=>c.toUpperCase());}
 function norm(s){s=String(s).replace(/[’‘]/g,"'").replace(/[“”]/g,'"').replace(/[‑–—]/g,'-').toLowerCase();return s.replace(/[^a-z0-9'\- ]/g,' ').replace(/\s+/g,' ').trim();}
 function escapeHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function tokenize(sent){const toks=[];buildUnits(sent).forEach(u=>{u.text.split(/\s+/).forEach(pc=>{if(!pc)return;const m=pc.match(/^([^A-Za-z0-9]*)([\s\S]*?)([^A-Za-z0-9]*)$/);toks.push({pre:m[1],core:m[2],post:m[3],chip:u.chip});});});return toks;}
@@ -452,23 +452,25 @@ function itemCardHTML(st,idx,graded){
   return h;
 }
 function sentWithBlanks(it,idx,a,mode){
+  const CAP=s=>s.replace(/[a-zA-Z]/,c=>c.toUpperCase());
   const bmap={}; it.blanks.forEach((b,bi)=>bmap[b.ti]=bi);
   const parts=it.toks.map((t,ti)=>{
+    const first=(ti===0);
     if(ti in bmap){const bi=bmap[ti];const ob=it.blanks[bi];let inner;
       if(mode==='mc'){
         if(!a){ inner=`<span class="blkbtn" id="blk-${idx}-${bi}" onclick="openOpts(${idx},${bi})">______</span>`; }
-        else{ const sl=a.sel?a.sel[bi]:null; const txt=(sl!=null)?ob.opts[sl]:'(미선택)'; const ok=(sl!=null)&&norm(ob.opts[sl])===norm(ob.answer);
+        else{ const sl=a.sel?a.sel[bi]:null; let txt=(sl!=null)?ob.opts[sl]:'(미선택)'; if(first)txt=CAP(txt); const ok=(sl!=null)&&norm(ob.opts[sl])===norm(ob.answer);
           inner=`<span class="blkfill ${ok?'okf':'nof'}">${escapeHtml(txt)}</span>`; }
       }else{ // sub: 첫 글자 제시 + 나머지 입력
-        if(!a){ const dashes=ob.answer.length>1?Array(ob.answer.length-1).fill('_').join(' '):'';
-          inner=`<span class="bhint">${escapeHtml(ob.answer[0])}</span><input class="binp rest" id="bin-${idx}-${bi}" placeholder="${dashes}">`; }
-        else{ const rest=(a.subv&&a.subv[bi]!=null)?a.subv[bi]:''; const full=ob.answer[0]+rest; const ok=norm(full)===norm(ob.answer);
+        if(!a){ const dashes=ob.answer.length>1?Array(ob.answer.length-1).fill('_').join(' '):''; const hint=first?CAP(ob.answer[0]):ob.answer[0];
+          inner=`<span class="bhint">${escapeHtml(hint)}</span><input class="binp rest" id="bin-${idx}-${bi}" placeholder="${dashes}">`; }
+        else{ const rest=(a.subv&&a.subv[bi]!=null)?a.subv[bi]:''; let full=ob.answer[0]+rest; if(first)full=CAP(full); const ok=norm(ob.answer[0]+rest)===norm(ob.answer);
           inner=`<span class="blkfill ${ok?'okf':'nof'}">${escapeHtml(full||ob.answer[0])}</span>`; }
       }
       const lbl=it.blanks.length>1?`<span class="bnumlbl">${bi+1}</span>`:'';
       return t.pre+inner+lbl+t.post;
     }
-    return escapeHtml(t.pre+t.core+t.post);
+    let txt=t.pre+t.core+t.post; if(first)txt=CAP(txt); return escapeHtml(txt);
   });
   return parts.join(' ').replace(/\s+([,.;:?!])/g,'$1').replace(/\s+/g,' ').trim();
 }
