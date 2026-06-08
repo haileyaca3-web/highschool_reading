@@ -751,11 +751,17 @@ function renderTeacher(){
     const byDate={};
     shown.forEach(r=>{const d=new Date(r.time);if(isNaN(d))return;const k=`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;(byDate[k]=byDate[k]||[]).push(r);});
     Object.keys(byDate).forEach(day=>{
-      h+=`<div class="tday">${day} · ${byDate[day].length}명</div>`;
-      byDate[day].forEach(r=>{const i=teacherTexts.length;teacherTexts.push(r.summary||'');
-        h+=`<div class="trow"><div class="thead"><b>${escapeHtml(r.student||'')}</b> <span class="tg">${escapeHtml(r.grade||'')}</span><button class="copybtn" onclick="copyText(${i})">카톡 복사</button></div>`+
-           `<div class="tsub">${escapeHtml(r.examTitle||'')}${r.numbers?' · 번호 '+escapeHtml(String(r.numbers)):''}</div>`+
-           `<div class="tsum">${escapeHtml(r.summary||'').replace(/\n/g,'<br>')}</div></div>`;});
+      // 같은 날 같은 학생끼리 묶기 (학생+날짜)
+      const groups={},order=[];
+      byDate[day].forEach(r=>{const key=String(r.id||r.student||'?');if(!groups[key]){groups[key]={name:r.student||'',grade:r.grade||'',recs:[]};order.push(key);}groups[key].recs.push(r);});
+      h+=`<div class="tday">${day} · ${order.length}명</div>`;
+      order.forEach(key=>{const g=groups[key];g.recs.sort((a,b)=>new Date(a.time)-new Date(b.time));
+        const combined=g.recs.map(r=>r.summary||'').join('\n\n──────────\n\n');
+        const i=teacherTexts.length;teacherTexts.push(combined);
+        h+=`<div class="trow"><div class="thead"><b>${escapeHtml(g.name)}</b> <span class="tg">${escapeHtml(g.grade)}</span><span class="tg" style="background:#6b7a90">${g.recs.length}회</span><button class="copybtn" onclick="copyText(${i})">전체 복사</button></div>`;
+        g.recs.forEach(r=>{ h+=`<div class="tsub">${escapeHtml(r.examTitle||'')}${r.numbers?' · 번호 '+escapeHtml(String(r.numbers)):''}</div><div class="tsum">${escapeHtml(r.summary||'').replace(/\n/g,'<br>')}</div>`; });
+        h+=`</div>`;
+      });
     });
     app.innerHTML=h;
   }).catch(e=>{app.innerHTML=`<div class="section-title">학습 결과</div><div class="intro">결과를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>`;});
