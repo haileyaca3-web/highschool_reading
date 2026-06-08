@@ -299,7 +299,7 @@ function renderLogin(){
     <div class="field"><label>비밀번호</label><input class="tin" id="inPw" type="password" placeholder="비밀번호"></div>
     <button class="bigbtn" onclick="doLogin()">로그인</button>
     <button class="bigbtn ghost" style="margin-top:10px" onclick="setScreen('signup')">가입 신청</button>
-    <button class="bigbtn ghost" style="margin-top:8px" onclick="setScreen('tgate')">선생님</button>
+    <div style="text-align:center;margin-top:14px"><span onclick="setScreen('tgate')" style="font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline">선생님 화면</span></div>
     <div class="note">가입 신청 후 선생님 승인이 되어야 로그인할 수 있어요. 비밀번호는 학원 내부 관리용이니 다른 곳에서 쓰는 중요한 비번은 쓰지 마세요.</div></div>`;
   setTimeout(()=>{const n=document.getElementById('inId');n&&n.focus();},80);
 }
@@ -742,7 +742,7 @@ function renderTeacher(){
     rows.sort((a,b)=>new Date(b.time)-new Date(a.time));
     const cut=new Date(); cut.setHours(0,0,0,0); cut.setDate(cut.getDate()-1);
     const shown = teacherAll ? rows : rows.filter(r=>{const d=new Date(r.time);return !isNaN(d)&&d>=cut;});
-    const toggle=`<button class="copybtn" style="background:#eef1f6;color:var(--navy);margin:0 0 10px" onclick="toggleTeacherRange()">${teacherAll?'어제·오늘만 보기':'전체 보기'}</button>`;
+    const toggle=`<button class="copybtn" style="background:#1d9e75;color:#fff;margin:0 8px 10px 0" onclick="renderTeacher()">새로고침</button><button class="copybtn" style="background:#eef1f6;color:var(--navy);margin:0 0 10px" onclick="toggleTeacherRange()">${teacherAll?'어제·오늘만 보기':'전체 보기'}</button>`;
     h+=`<div class="section-title">${teacherAll?'전체 학습 결과 (최근순)':'어제·오늘 시험 결과'}</div>`+toggle;
     if(!shown.length){
       h+=`<div class="intro">${teacherAll?'아직 저장된 결과가 없어요.':'어제·오늘 시험 본 학생이 없어요. ‘전체 보기’를 눌러 지난 결과를 볼 수 있어요.'}</div>`;
