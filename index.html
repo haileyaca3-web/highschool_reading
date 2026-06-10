@@ -232,6 +232,30 @@ html,body{font-family:var(--hcr);}
 .copybtn{font-size:10.5px;padding:4px 8px;border-radius:7px;}
 .tsub{font-size:10.5px;margin:3px 0;}
 .tsum{font-size:11px;line-height:1.45;padding:6px 8px;border-radius:7px;}
+
+/* 문법 모듈 */
+.modecards{display:flex;flex-direction:column;gap:12px;margin-top:8px;}
+.modecard{width:100%;text-align:left;background:#fff;border:1.5px solid var(--navy3);border-radius:16px;padding:18px 18px;cursor:pointer;box-shadow:0 3px 12px rgba(19,35,63,.06);}
+.modecard.gram{border-color:#1d9e75;}
+.mc-t{font-size:19px;font-weight:800;color:var(--navy);}
+.mc-s{font-size:12.5px;color:var(--muted);margin-top:4px;}
+.gchap{background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:9px;box-shadow:0 2px 8px rgba(19,35,63,.04);}
+.gc-name{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:8px;}
+.gc-btns{display:flex;gap:8px;}
+.gc-b{flex:1;background:var(--navy);color:#fff;border:none;border-radius:10px;padding:10px 8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--hcr);}
+.gc-b.alt{background:#1d9e75;}
+.gprog{font-size:12px;color:var(--muted);font-weight:700;margin:2px 2px 8px;}
+.gsrc{font-size:11.5px;color:var(--muted);margin-bottom:6px;}
+.gko{font-size:14.5px;color:var(--navy);font-weight:600;margin:6px 0 10px;line-height:1.5;}
+.optv.okline{border-color:#1d9e75;background:#e9f8f1;color:#127a56;}
+.optv.badline{border-color:#d9534f;background:#fdeceb;color:#b33;}
+.gexp{margin:12px 0;padding:11px 13px;border-radius:11px;font-size:13px;line-height:1.5;}
+.gexp.ok{background:#e9f8f1;color:#127a56;}
+.gexp.bad{background:#fdeceb;color:#b33;}
+.gexp .gko{font-size:12.5px;color:#555;font-weight:500;}
+.yslots{display:inline;}
+.yempty{color:var(--muted);font-size:13px;}
+.ypool{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;}
 </style>
 </head>
 <body>
@@ -277,6 +301,11 @@ function render(){
   clearInterval(timerId);
   who.textContent=(S&&S.student)?`${S.student}${S.grade?' · '+S.grade:''}${S.cls?' · '+S.cls:''}`:'';
   if(screen==='login')renderLogin();
+  else if(screen==='mode')renderMode();
+  else if(screen==='gGrade')renderGGrade();
+  else if(screen==='gChapter')renderGChapter();
+  else if(screen==='gPlay')renderGPlay();
+  else if(screen==='gResult')renderGResult();
   else if(screen==='grade')renderGrade();
   else if(screen==='teacher')renderTeacher();
   else if(screen==='signup')renderSignup();
@@ -308,7 +337,7 @@ function doLogin(){
   if(!id||!pw){toast('아이디와 비밀번호를 입력하세요');return;}
   toast('확인 중…');
   apiGet({action:'login',id:id,pw:pw}).then(j=>{
-    if(j&&j.ok){S={student:j.name||id,id:id,retries:0};pick={year:null};sel=new Set();setScreen('grade');}
+    if(j&&j.ok){S={student:j.name||id,id:id,retries:0};pick={year:null};sel=new Set();setScreen('mode');}
     else toast((j&&j.msg)||'로그인 실패');
   }).catch(()=>toast('연결 오류 - 잠시 후 다시 시도하세요'));
 }
@@ -773,7 +802,131 @@ function fbCopy(t){const ta=document.createElement('textarea');ta.value=t;docume
 function restart(){clearInterval(timerId);try{sendResult();}catch(e){}S=null;setScreen('login');}
 
 let toastT;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200);}
-backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('login');else if(screen==='teacher')setScreen('login');else if(screen==='signup')setScreen('login');else if(screen==='tgate')setScreen('login');else if(screen==='myrec')setScreen(S&&S.id?'grade':'login');else if(screen==='stageselect')setScreen('numbers');};
+/* ===== 문법(어법·영작) 모듈 ===== */
+let GRAM={}; let G=null;
+function renderMode(){
+  backBtn.style.display='none';hsub.textContent='메뉴';app.className='fade';
+  app.innerHTML=`<div class="section-title">무엇을 풀까요?</div>
+   <div class="modecards">
+     <button class="modecard" onclick="setScreen('grade')"><div class="mc-t">모의고사</div><div class="mc-s">학력평가 순서배열·빈칸</div></button>
+     <button class="modecard gram" onclick="setScreen('gGrade')"><div class="mc-t">문법</div><div class="mc-s">어법 + 영작 · 고1·고2</div></button>
+   </div>
+   <button class="bigbtn ghost" style="margin-top:14px" onclick="setScreen('myrec')">내 기록 보기</button>`;
+}
+function renderGGrade(){
+  backBtn.style.display='flex';hsub.textContent='문법 · 학년';app.className='fade';
+  app.innerHTML=`<div class="section-title">학년을 선택하세요</div>
+   <div class="gradesel">
+     <button class="gradebtn" onclick="gPickGrade('고1')">고1</button>
+     <button class="gradebtn" onclick="gPickGrade('고2')">고2</button></div>
+   <div class="intro">고1·고2 모의고사 문법(어법·영작)이에요.</div>`;
+}
+function gPickGrade(grade){
+  S.grade=grade;app.innerHTML=`<div class="intro">${grade} 문법 자료 불러오는 중…</div>`;
+  const go=j=>{G={grade:grade,data:j};setScreen('gChapter');};
+  if(GRAM[grade])return go(GRAM[grade]);
+  const file=grade==='고1'?'grammar_go1.json':'grammar_go2.json';
+  fetch(file,{cache:'no-store'}).then(r=>r.json()).then(j=>{GRAM[grade]=j;go(j);})
+    .catch(()=>{app.innerHTML=`<div class="section-title">문법</div><div class="intro">자료를 불러오지 못했어요. <b>${file}</b> 파일이 앱과 같은 폴더에 올라가 있는지 확인하세요.</div>`;});
+}
+function renderGChapter(){
+  backBtn.style.display='flex';hsub.textContent=`문법 · ${G.grade}`;app.className='fade';
+  let h=`<div class="section-title">${G.grade} · 챕터 선택</div>`;
+  G.data.chapters.forEach((c,i)=>{
+    h+=`<div class="gchap"><div class="gc-name">${c.no}. ${escapeHtml(c.name)}</div>
+      <div class="gc-btns">
+        <button class="gc-b" onclick="gStart(${i},'eobeop')">1차시 어법 · ${c.eobeop.length}</button>
+        <button class="gc-b alt" onclick="gStart(${i},'yeongjak')">2차시 영작 · ${c.yeongjak.length}</button>
+      </div></div>`;
+  });
+  app.innerHTML=h;
+}
+function gStart(chIdx,mode){
+  const c=G.data.chapters[chIdx];
+  const items=(mode==='eobeop'?c.eobeop:c.yeongjak).slice();
+  G.chIdx=chIdx;G.mode=mode;G.items=items;G.pos=0;G.ans={};G.chName=c.name;G.done=false;
+  G.sid=(S.id||S.student||'u')+'-G-'+G.grade+'-'+c.no+'-'+mode+'-'+Date.now();
+  if(!items.length){alert('이 차시에는 문제가 없어요.');return;}
+  setScreen('gPlay');
+}
+function renderGPlay(){
+  backBtn.style.display='flex';
+  hsub.textContent=`${G.grade} · ${G.chName} · ${G.mode==='eobeop'?'어법':'영작'}`;app.className='fade';
+  const i=G.pos,it=G.items[i],n=G.items.length;
+  if(!it)return gFinish();
+  let h=`<div class="gprog">${i+1} / ${n}</div>`;
+  if(G.mode==='eobeop'){
+    const a=G.ans[i];
+    if(it.src)h+=`<div class="gsrc">${escapeHtml(it.src)}</div>`;
+    h+=`<div class="sentence">${escapeHtml(it.ctx||'')}</div>`;
+    h+=`<div class="optpop show">`;
+    it.opts.forEach((o,oi)=>{ let cls='optv'; if(a){ if(o===it.ans)cls+=' okline'; else if(o===a.pick)cls+=' badline'; }
+      h+=`<button class="${cls}" ${a?'disabled':''} onclick="gPickEo(${oi})"><b>${oi+1}.</b> ${escapeHtml(o)}</button>`; });
+    h+=`</div>`;
+    if(a){ h+=`<div class="gexp ${a.result?'ok':'bad'}">${a.result?'정답! ✅':'오답 · 정답: '+escapeHtml(it.ans)}`+
+      `${it.exp?'<br>'+escapeHtml(it.exp):''}${it.ko?'<br><span class="gko">'+escapeHtml(it.ko)+'</span>':''}</div>`+
+      `<button class="bigbtn" onclick="gNext()">${i+1<n?'다음 →':'결과 보기'}</button>`; }
+  }else{
+    const a=G.ans[i]||{placed:[]}; const placed=a.placed||[];
+    if(it.src)h+=`<div class="gsrc">${escapeHtml(it.src)}</div>`;
+    h+=`<div class="gko">${escapeHtml(it.ko||'')}</div>`;
+    h+=`<div class="sentence">${it.beforeEn?escapeHtml(it.beforeEn)+' ':''}<span class="yslots">`;
+    h+= placed.length? placed.map((t,si)=>`<span class="slotchip" onclick="gUnplace(${si})">${escapeHtml(it.tiles[t])}</span>`).join('')
+                     : '<span class="yempty">( 단어를 눌러 배열 )</span>';
+    h+=`</span>${it.afterEn?' '+escapeHtml(it.afterEn):''}</div>`;
+    if(a.checked){
+      h+=`<div class="gexp ${a.result?'ok':'bad'}">${a.result?'정답! ✅':'오답'}<br>정답: ${escapeHtml(it.ans)}`+
+         `${it.exp?'<br>'+escapeHtml(it.exp):''}</div>`+
+         `<button class="bigbtn" onclick="gNext()">${i+1<n?'다음 →':'결과 보기'}</button>`;
+    }else{
+      h+=`<div class="ypool">`;
+      it.tiles.forEach((t,ti)=>{ if(placed.includes(ti))return; h+=`<button class="poolchip" onclick="gPlace(${ti})">${escapeHtml(t)}</button>`; });
+      h+=`</div><div class="barbtm"><button class="bigbtn" ${placed.length?'':'disabled'} onclick="gCheckYj()">제출</button></div>`;
+    }
+  }
+  app.innerHTML=h;
+}
+function gPickEo(oi){const it=G.items[G.pos];const pick=it.opts[oi];G.ans[G.pos]={pick:pick,result:pick===it.ans};render();}
+function gPlace(ti){const a=G.ans[G.pos]||{placed:[]};a.placed=(a.placed||[]).concat(ti);G.ans[G.pos]=a;render();}
+function gUnplace(si){const a=G.ans[G.pos];if(!a||a.checked)return;a.placed.splice(si,1);render();}
+function gCheckYj(){const it=G.items[G.pos];const a=G.ans[G.pos]||{placed:[]};
+  const made=(a.placed||[]).map(t=>it.tiles[t]).join(' ');a.checked=true;a.result=norm(made)===norm(it.ans);G.ans[G.pos]=a;render();}
+function gNext(){G.pos++;if(G.pos>=G.items.length)gFinish();else render();}
+function gFinish(){G.done=true;sendGrammar();setScreen('gResult');}
+function gCorrect(){let c=0;G.items.forEach((it,i)=>{const a=G.ans[i];if(a&&a.result)c++;});return c;}
+function buildGrammarText(){
+  const c=gCorrect(),n=G.items.length,mode=G.mode==='eobeop'?'1차시 어법':'2차시 영작';
+  const L=[];L.push('[헤일리 문법 결과]');L.push('이름: '+(S.student||''));
+  L.push('날짜: '+new Date().toLocaleString('ko-KR'));L.push('학년: '+G.grade);
+  L.push('챕터: '+G.chName+' · '+mode);L.push('점수: '+c+'/'+n+' ('+(n?Math.round(c/n*100):0)+'점)');
+  const wrong=[];G.items.forEach((it,i)=>{const a=G.ans[i];if(a&&!a.result)wrong.push((i+1)+'. 정답: '+it.ans);});
+  if(wrong.length){L.push('-------------');L.push('틀린 문제:');wrong.forEach(w=>L.push(' · '+w));}else{L.push('전부 정답 ✅');}
+  return L.join('\n');
+}
+function sendGrammar(){
+  if(!G||!G.items||!G.items.length)return;
+  const c=gCorrect(),n=G.items.length;
+  const payload={action:'upsert',sid:G.sid||'',student:S.student,id:S.id||'',cls:S.cls||'',grade:G.grade||'',
+    examTitle:'[문법] '+G.grade+' · '+G.chName+' · '+(G.mode==='eobeop'?'1차시 어법':'2차시 영작'),
+    numbers:c+'/'+n,summary:buildGrammarText(),retries:0};
+  try{fetch(RESULT_API,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)});}catch(e){}
+}
+function renderGResult(){
+  backBtn.style.display='flex';hsub.textContent='문법 결과';app.className='fade';
+  const c=gCorrect(),n=G.items.length,sc=n?Math.round(c/n*100):0;
+  let h=`<div class="endwrap"><div class="gradebanner ${sc>=80?'pass':'fail'}"><div class="score">${sc}점</div>`+
+        `<div class="msg">${c} / ${n} 정답 · ${escapeHtml(G.chName)} ${G.mode==='eobeop'?'어법':'영작'}</div></div>`;
+  const wrong=[];G.items.forEach((it,i)=>{const a=G.ans[i];if(a&&!a.result)wrong.push({i,it});});
+  if(wrong.length){h+=`<div class="section-title">틀린 문제</div>`;
+    wrong.forEach(({i,it})=>{h+=`<div class="trow"><div class="tsum"><b>${i+1}.</b> 정답: ${escapeHtml(it.ans)}${it.exp?'<br>'+escapeHtml(it.exp):''}</div></div>`;});}
+  else h+=`<div class="intro">전부 정답이에요! 👍</div>`;
+  if(G.mode==='eobeop')h+=`<button class="bigbtn" style="margin-top:12px" onclick="gStart(${G.chIdx},'yeongjak')">2차시 영작 풀기 →</button>`;
+  h+=`<button class="bigbtn ghost" style="margin-top:10px" onclick="setScreen('gChapter')">챕터 선택으로</button>`+
+     `<button class="bigbtn ghost" style="margin-top:8px" onclick="restart()">첫 화면으로</button></div>`;
+  app.innerHTML=h;
+}
+
+backBtn.onclick=()=>{if(screen==='numbers')setScreen('exam');else if(screen==='exam')setScreen('grade');else if(screen==='grade')setScreen('mode');else if(screen==='mode')setScreen('login');else if(screen==='gGrade')setScreen('mode');else if(screen==='gChapter')setScreen('gGrade');else if(screen==='gPlay')setScreen('gChapter');else if(screen==='gResult')setScreen('gChapter');else if(screen==='teacher')setScreen('login');else if(screen==='signup')setScreen('login');else if(screen==='tgate')setScreen('login');else if(screen==='myrec')setScreen(S&&S.id?'mode':'login');else if(screen==='stageselect')setScreen('numbers');};
 (async()=>{try{const r=await fetch('exams.json',{cache:'no-store'});if(r.ok){const d=await r.json();if(Array.isArray(d)&&d.length){EXAMS=d;rebuildAvail();if(screen==='exam'||screen==='numbers')render();}}}catch(e){}})();
 render();
 </script>
