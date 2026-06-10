@@ -459,7 +459,7 @@ function startSession(){
   S.items=raw; S.orderTitles=order.map(p=>p.title);
   S.ans={1:{},2:{},3:{},4:{}}; S.stats={}; S.stoppedStage=null;
   S.sid=(S.id||S.student||'u')+'-'+S.examId+'-'+Date.now();
-  S.sel=new Set([1,2,3,4]);
+  S.sel=new Set([1,2]);
   setScreen('stageselect');
 }
 
@@ -467,13 +467,13 @@ function renderStageSelect(){
   backBtn.style.display='flex';hsub.textContent=`${S.examTitle} · 단계 선택`;
   const names={1:'1단계 · 빈칸 객관식',2:'2단계 · 문장 배열',3:'3단계 · 재시험(배열)',4:'4단계 · 빈칸 주관식'};
   const desc={1:'핵심 단어 빈칸을 보기에서 고르기',2:'조각을 눌러 배열 (빈칸 최대 4개)',3:'틀린 문장 다시 배열 (빈칸 4~5개)',4:'핵심 단어 첫 글자 보고 쓰기'};
-  let h=`<div class="section-title">진행할 단계 선택 (여러 개 가능)</div><div class="grid stages">`;
-  [1,2,3,4].forEach(s=>{const on=S.sel.has(s);const st=S.stats[s];
-    const done=st?`<div class="sdone">✓ 완료 · ${s<=2?st.score+'점':st.c+'/'+st.t}</div>`:'';
+  let h=`<div class="section-title">진행할 단계 선택</div><div class="grid stages">`;
+  [1,2].forEach(s=>{const on=S.sel.has(s);const st=S.stats[s];
+    const done=st?`<div class="sdone">✓ 완료 · ${st.score}점</div>`:'';
     h+=`<div class="card scard ${on?'on':''} ${st?'fin':''}" onclick="toggleStage(${s})"><div class="sicon">${s}</div>
       <div class="sbody"><div class="sname">${names[s]}</div><div class="sdesc">${desc[s]}</div>${done}</div>
       <div class="schk">${on?'✓':''}</div></div>`;});
-  h+=`</div><div class="intro">각 단계가 끝나면 <b>단계 선택으로 다시 돌아올 수 있어요.</b> 이미 끝낸 단계는 ‘✓ 완료’로 표시되고 점수는 기록돼요. 3·4단계는 앞 단계에서 틀린 문장으로 재시험하되, 따로 선택하면 전체로도 풀 수 있어요.</div>
+  h+=`</div><div class="intro">1·2단계를 풀면, 틀린 지문은 끝난 뒤 <b>3단계 재시험</b>으로 이어서 볼 수 있어요. (3·4단계는 그때 안내에서 시작해요.)</div>
     <div class="barbtm"><div class="inner"><span class="left">${S.sel.size}단계 선택</span>
     <button class="act gold" ${S.sel.size?'':'disabled'} onclick="startPlan()">시작하기 →</button></div></div>`;
   app.className='fade';app.innerHTML=h;
@@ -505,11 +505,21 @@ function stageItems(st){
   else base=[];
   return base.filter(hasBlank);
 }
+function enLen(idx){const it=S.items[idx];let n=0;(it.segs||[]).forEach(sg=>{n+= sg.type==='sc'?((sg.chips||[]).join(' ').length):((sg.text||'').length);});return n;}
+function buildScreens(items,st){
+  if(st===2||st===3) return items.map(i=>[i]);          // 배열: 1문장/페이지
+  const pages=[]; let cur=[],len=0; const BUD=150;        // 1·4단계: 길면 1문장, 짧으면 2문장
+  items.forEach(idx=>{ const l=enLen(idx);
+    if(!cur.length){cur=[idx];len=l;}
+    else if(cur.length<2 && (len+l)<=BUD){cur.push(idx);len+=l;}
+    else{pages.push(cur);cur=[idx];len=l;} });
+  if(cur.length)pages.push(cur);
+  return pages;
+}
 function startStage(st){
-  S.stage=st; S.ans[st]={};
+  S.stage=st; S.ans[st]={}; S.ask4=false;
   const items=stageItems(st);
-  const ps=(st===2||st===3)?1:PAGE_SIZE;
-  S.screens=[]; for(let i=0;i<items.length;i+=ps)S.screens.push(items.slice(i,i+ps));
+  S.screens=buildScreens(items,st);
   S.spos=0; S.phase='answering';
   if(st===2||st===3){ const cap=(st===2)?4:5; items.forEach(idx=>{ const it=S.items[idx];
       const n=Math.min(it.mv.length,cap);
@@ -684,20 +694,47 @@ function stageEndHTML(){
     <div class="msg">${stt.c} / ${stt.t} 정답 · 지문별 ${mark}% 기준</div></div>`;
   if((st===1||st===2)&&nextGate){
     h+=`<button class="bigbtn" style="margin-bottom:12px" onclick="advancePlan()">다음 단계로 진행 →</button>`+navBtns();
-  }else if(nextStage&&failPids.length){
-    h+=`<div class="choicemsg"><b>${failTitles(failPids)}</b> 지문은 재시험 봐야 합니다.<br><b>${nextStage}단계 시험 진행해야 합니다.</b></div>
-      <button class="bigbtn" style="margin-bottom:12px" onclick="proceedRemedial(${nextStage})">${nextStage}단계 지금 진행 →</button>
-      <button class="bigbtn alt" style="margin-bottom:12px" onclick="goStageSelect()">나중에 (공부하고)</button>
-      <button class="bigbtn ghost" onclick="restart()">첫 화면으로</button>`;
-  }else if(nextStage){
-    h+=`<div class="choicemsg">통과! 재시험할 지문이 없어요. 👍</div>
-      <button class="bigbtn" style="margin-bottom:12px" onclick="setScreen('result')">전체 결과 보기</button>`+navBtns();
+  }else if(st===1||st===2){
+    // 2단계(또는 1단계 단독) 끝 → 3단계 안내
+    if(failPids.length){
+      const reexam=(S.retries||0)>0;
+      if(reexam){
+        h+=`<div class="choicemsg"><b>재시험입니다.</b><br>충분히 공부하고 다시 보세요.<br><span class="cmsub">재시험 지문: ${failTitles(failPids)}</span></div>`;
+      }else{
+        h+=`<div class="choicemsg"><b>${failTitles(failPids)}</b> 지문 — 틀린 문제들 시험 봅니다.</div>`;
+      }
+      h+=`<button class="bigbtn" style="margin-bottom:12px" onclick="proceedRemedial(3)">3단계 시작 →</button>
+        <button class="bigbtn alt" style="margin-bottom:12px" onclick="retryLater()">나중에 (공부하고 다시)</button>
+        <button class="bigbtn ghost" onclick="restart()">첫 화면으로</button>`;
+    }else{
+      h+=`<div class="choicemsg">통과! 재시험할 지문이 없어요. 👍</div>
+        <button class="bigbtn" style="margin-bottom:12px" onclick="setScreen('result')">전체 결과 보기</button>`+navBtns();
+    }
+  }else if(st===3){
+    if(failPids.length){
+      if(S.ask4){
+        h+=`<div class="choicemsg"><b>지문 쓰기 완료되었나요?</b><br>그럼 4단계를 시작합니다.</div>
+          <button class="bigbtn" style="margin-bottom:12px" onclick="proceedRemedial(4)">4단계 시작합니다 →</button>
+          <button class="bigbtn ghost" style="margin-bottom:12px" onclick="cancelAsk4()">아직이요 (취소)</button>`;
+      }else{
+        h+=`<div class="choicemsg"><b>${failTitles(failPids)}</b> 지문 — 4단계 봐야 합니다.</div>
+          <button class="bigbtn" style="margin-bottom:12px" onclick="askWrite4()">4단계 시작 →</button>
+          <button class="bigbtn alt" style="margin-bottom:12px" onclick="goStageSelect()">나중에</button>
+          <button class="bigbtn ghost" onclick="restart()">첫 화면으로</button>`;
+      }
+    }else{
+      h+=`<div class="choicemsg">통과! 4단계는 안 봐도 됩니다. 👍</div>
+        <button class="bigbtn" style="margin-bottom:12px" onclick="setScreen('result')">전체 결과 보기</button>`+navBtns();
+    }
   }else{
     h+=`<button class="bigbtn" style="margin-bottom:12px" onclick="setScreen('result')">전체 결과 보기</button>`+navBtns();
   }
   return h+`</div>`;
 }
-function goStageSelect(){const undone=[1,2,3,4].filter(s=>!S.stats[s]);S.sel=new Set(undone.length?undone:[1,2,3,4]);S.stoppedStage=null;setScreen('stageselect');}
+function askWrite4(){S.ask4=true;render();}
+function cancelAsk4(){S.ask4=false;render();}
+function retryLater(){S.retries=(S.retries||0)+1;goStageSelect();}
+function goStageSelect(){const undone=[1,2].filter(s=>!S.stats[s]);S.sel=new Set(undone.length?undone:[1,2]);S.stoppedStage=null;S.ask4=false;setScreen('stageselect');}
 function proceedRemedial(target){
   if(!S.plan.includes(target)){ S.plan.push(target); S.plan.sort((a,b)=>a-b); }
   S.planPos=S.plan.indexOf(target)-1; advancePlan();
